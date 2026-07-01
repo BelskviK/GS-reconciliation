@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+:root {
+  /* Base surfaces */
+  --color-paper: #faf8f4;
+  --color-paper-raised: #ffffff;
+  --color-ink: #1c2433;
+  --color-ink-muted: #5b6472;
+  --color-hairline: #e3ddd2;
+
+  /* Status palette — one consistent vocabulary across stats, table rows,
+     and the expected-vs-actual panel. */
+  --color-matched: #2d7a66;
+  --color-matched-bg: #e8f3ef;
+  --color-unmatched: #b14a3d;
+  --color-unmatched-bg: #fbece8;
+  --color-ignored: #8b8680;
+  --color-ignored-bg: #f0ede7;
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@theme inline {
+  --color-paper: var(--color-paper);
+  --color-paper-raised: var(--color-paper-raised);
+  --color-ink: var(--color-ink);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-hairline: var(--color-hairline);
+  --color-matched: var(--color-matched);
+  --color-matched-bg: var(--color-matched-bg);
+  --color-unmatched: var(--color-unmatched);
+  --color-unmatched-bg: var(--color-unmatched-bg);
+  --color-ignored: var(--color-ignored);
+  --color-ignored-bg: var(--color-ignored-bg);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Tabular figures everywhere a number appears in a column — this is what
+   makes a column of GEL amounts actually scannable instead of jagged. */
+.font-mono {
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
