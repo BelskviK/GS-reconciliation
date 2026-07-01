@@ -182,6 +182,22 @@ export async function updateTransactionComment(
 }
 
 /**
+ * Thrown by runAutoMatching() specifically when match_transactions_by_inn()
+ * doesn't exist in the database yet (migration 001 was never run, or the
+ * anon role was never granted EXECUTE on it). Kept as a distinct class so
+ * the UI can show an actionable "create the function" message instead of
+ * a generic failure.
+ */
+export class MatchingFunctionMissingError extends Error {
+  constructor() {
+    super(
+      "ბაზაში არ მოიძებნა match_transactions_by_inn() ფუნქცია — გთხოვთ, გაუშვათ supabase/migrations/001_match_transactions_by_inn.sql Supabase SQL Editor-ში და მიანიჭეთ anon როლს EXECUTE უფლება.",
+    );
+    this.name = "MatchingFunctionMissingError";
+  }
+}
+
+/**
  * Runs the INN-based auto-matching RPC (see migrations/match_transactions.sql).
  * Returns the number of transactions that were newly matched.
  */
@@ -190,6 +206,21 @@ export async function runAutoMatching(): Promise<number> {
   const { data, error } = await supabase.rpc("match_transactions_by_inn");
 
   if (error) {
+    // PostgREST's "function not found in schema cache" error — this is what
+    // Supabase returns (code PGRST202) when the RPC was never created, or
+    // was created but never granted to `anon`. Postgres itself would also
+    // raise 42883 (undefined_function) for the same root cause if this ever
+    // ran on a raw connection instead of through PostgREST.
+    const isMissingFunction =
+      error.code === "PGRST202" ||
+      error.code === "42883" ||
+      /could not find the function/i.test(error.message) ||
+      /function .* does not exist/i.test(error.message);
+
+    if (isMissingFunction) {
+      throw new MatchingFunctionMissingError();
+    }
+
     throw new Error(`Auto-matching failed: ${error.message}`);
   }
 

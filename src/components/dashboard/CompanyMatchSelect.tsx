@@ -56,16 +56,19 @@ export function CompanyMatchSelect({
   }
 
   return (
-    <div ref={containerRef} className="relative flex items-center gap-1">
+    <div ref={containerRef} className="relative flex min-w-0 items-center gap-1">
       <button
         onClick={() => setOpen((o) => !o)}
         disabled={disabled}
-        className="inline-flex items-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-left text-sm transition-colors hover:border-hairline disabled:opacity-50"
+        className="inline-flex min-w-0 items-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-left text-sm transition-colors hover:border-hairline disabled:opacity-50"
       >
-        <span className={currentCompany ? "" : "text-ink-muted"}>
+        <span
+          className={cn("min-w-0 truncate", currentCompany ? "" : "text-ink-muted")}
+          title={currentCompany?.name}
+        >
           {currentCompany?.name ?? "— აირჩიეთ —"}
         </span>
-        <ChevronDown className="h-3 w-3 text-ink-muted" />
+        <ChevronDown className="h-3 w-3 shrink-0 text-ink-muted" />
       </button>
 
       {currentCompany && onRemove && (

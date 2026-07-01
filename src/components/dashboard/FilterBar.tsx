@@ -1,9 +1,12 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { transactionFiltersSchema } from "@/schemas/transactionFilters";
 import type { TransactionStatus } from "@/types/domain";
+
+const SEARCH_DEBOUNCE_MS = 300;
 
 interface FilterBarProps {
   status: TransactionStatus[];
@@ -27,9 +30,46 @@ export function FilterBar({
   onStatusChange,
   onSearchChange,
 }: FilterBarProps) {
-  function handleSearchChange(value: string) {
+  // Local, immediate input value — typing always feels instant. The
+  // debounced value is what actually gets pushed up to the parent (and
+  // from there into the TanStack Query key / Supabase call), so a fast
+  // typist doesn't fire a network request per keystroke. Clearing the
+  // input is the one path that intentionally SKIPS the debounce: the
+  // user expects the list to reset the moment they hit the X, not
+  // 300ms later.
+  const [inputValue, setInputValue] = useState(search);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Stay in sync if `search` is reset externally (e.g. month switch).
+  useEffect(() => {
+    setInputValue(search);
+  }, [search]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, []);
+
+  function parseSearch(value: string): string {
     const result = transactionFiltersSchema.shape.search.safeParse(value);
-    onSearchChange(result.success ? result.data : value.slice(0, 200));
+    return result.success ? result.data : value.slice(0, 200);
+  }
+
+  function handleSearchChange(rawValue: string) {
+    const value = parseSearch(rawValue);
+    setInputValue(value);
+
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      onSearchChange(value);
+    }, SEARCH_DEBOUNCE_MS);
+  }
+
+  function handleClear() {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    setInputValue("");
+    onSearchChange(""); // fires immediately — no debounce wait on clear
   }
 
   function toggleStatus(statusValue: TransactionStatus) {
@@ -70,11 +110,21 @@ export function FilterBar({
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
         <input
           type="text"
-          value={search}
+          value={inputValue}
           onChange={(e) => handleSearchChange(e.target.value)}
           placeholder="ძებნა სახელით ან ს/კ-ით..."
-          className="w-full rounded-lg border border-hairline bg-paper-raised py-1.5 pl-9 pr-3 text-sm outline-none placeholder:text-ink-muted focus:border-ink"
+          className="w-full rounded-lg border border-hairline bg-paper-raised py-1.5 pl-9 pr-8 text-sm outline-none placeholder:text-ink-muted focus:border-ink"
         />
+        {inputValue && (
+          <button
+            type="button"
+            onClick={handleClear}
+            aria-label="ძებნის გასუფთავება"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-ink-muted hover:bg-hairline/50 hover:text-ink"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
     </div>
   );

@@ -1,7 +1,10 @@
 "use client";
 
 import { cn } from "@/lib/utils/cn";
-import { suggestCompanyMatches } from "@/lib/utils/fuzzyMatch";
+import {
+  scoreCompanyMatch,
+  suggestCompanyMatches,
+} from "@/lib/utils/fuzzyMatch";
 import type { Company, BankTransaction } from "@/types/domain";
 
 interface MatchScoreDotProps {
@@ -11,17 +14,36 @@ interface MatchScoreDotProps {
 
 /**
  * Small colored dot + percentage showing how well the transaction's
- * sender matches its currently assigned company (or, for unmatched
- * transactions, the best available suggestion). This is a fuzzy-name
- * confidence signal, distinct from match_confidence in the DB (which is
- * always 1.00 for inn_exact matches — those don't need a fuzzy score).
+ * sender NAME matches its currently assigned company (or, for unmatched
+ * transactions, the best available suggestion). This is deliberately a
+ * pure fuzzy-name signal, always computed from scoreCompanyMatch() — it
+ * is NOT the same thing as match_confidence in the DB (which is always
+ * 1.00 for inn_exact, since that's a tax-ID equality check, not a name
+ * comparison). Don't special-case inn_exact to a hardcoded 100% here: an
+ * inn_exact match can still have a genuinely low name-similarity score
+ * (e.g. "გეოტრანსი (ფილიალი)" vs "შპს გეოტრანსი" — same tax ID, ~88%
+ * name match), and that's precisely the useful signal this dot exists
+ * to surface. Using scoreCompanyMatch() (the same function
+ * CompanyMatchSelect's dropdown uses per-row) also keeps this dot's
+ * percentage identical to the {s.scorePercent}% shown next to that
+ * company there, for both inn_exact and manual matches.
  */
 export function MatchScoreDot({ transaction, companies }: MatchScoreDotProps) {
-  const suggestions = suggestCompanyMatches(transaction, companies, 1);
-  const topSuggestion = suggestions[0];
+  const matchedCompany = companies.find(
+    (c) => c.id === transaction.matchedCompanyId,
+  );
 
-  const isExactMatch = transaction.matchMethod === "inn_exact";
-  const percent = isExactMatch ? 100 : (topSuggestion?.scorePercent ?? 0);
+  let percent: number;
+  let suggestionLabel: string | undefined;
+
+  if (matchedCompany) {
+    percent = scoreCompanyMatch(transaction, matchedCompany).scorePercent;
+  } else {
+    // Unmatched: fall back to the best available suggestion as a hint.
+    const topSuggestion = suggestCompanyMatches(transaction, companies, 1)[0];
+    percent = topSuggestion?.scorePercent ?? 0;
+    suggestionLabel = topSuggestion?.company.name;
+  }
 
   const colorClass =
     percent >= 70
@@ -32,9 +54,9 @@ export function MatchScoreDot({ transaction, companies }: MatchScoreDotProps) {
 
   return (
     <span
-      className="inline-flex items-center gap-1 mr-1"
+      className="inline-flex items-center gap-1"
       title={`სანდოობა: ${percent}%${
-        topSuggestion && !isExactMatch ? ` (${topSuggestion.company.name})` : ""
+        suggestionLabel ? ` (${suggestionLabel})` : ""
       }`}
     >
       <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", colorClass)} />

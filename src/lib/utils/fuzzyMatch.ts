@@ -55,31 +55,54 @@ export interface CompanyMatchSuggestion {
 }
 
 /**
- * Combined suggestion score: name similarity is the primary signal
- * (companies rarely share name substrings by coincidence), tax ID
- * prefix similarity is a secondary boost (catches typo'd INNs that
- * still mostly match). Weighted 60/40 toward name, since a transaction
- * with a wildly different name but a near-identical tax ID is a much
- * stronger signal of a real match than the reverse.
+ * Combined suggestion score for one specific transaction/company pair:
+ * name similarity is the primary signal (companies rarely share name
+ * substrings by coincidence), tax ID prefix similarity is a secondary
+ * boost (catches typo'd INNs that still mostly match). Weighted 60/40
+ * toward name, since a transaction with a wildly different name but a
+ * near-identical tax ID is a much stronger signal of a real match than
+ * the reverse.
+ *
+ * Exported on its own (not just inlined inside suggestCompanyMatches)
+ * so any UI showing "how well does this transaction match company X"
+ * for a single, already-known company — e.g. the currently assigned
+ * company on a manually-matched transaction — computes the exact same
+ * number as the suggestion list does for that company. Two separate
+ * implementations of the same formula would drift the moment one of
+ * them got tweaked.
+ */
+export function scoreCompanyMatch(
+  transaction: BankTransaction,
+  company: Company,
+): CompanyMatchSuggestion {
+  const senderName = transaction.senderName ?? "";
+  const senderInn = transaction.senderInn;
+
+  const nameScore = diceCoefficient(senderName, company.name);
+  const taxScore = taxIdPrefixSimilarity(senderInn, company.taxId);
+  const combined = nameScore * 0.6 + taxScore * 0.4;
+
+  return {
+    company,
+    score: combined,
+    scorePercent: Math.round(combined * 100),
+  };
+}
+
+/**
+ * Ranks every company against a transaction and returns the top `limit`
+ * candidates, for the "pick a company" suggestion list. Built on top of
+ * scoreCompanyMatch() so the per-company numbers here are identical to
+ * whatever scoreCompanyMatch() would return for that same pair.
  */
 export function suggestCompanyMatches(
   transaction: BankTransaction,
   companies: Company[],
   limit = 3,
 ): CompanyMatchSuggestion[] {
-  const senderName = transaction.senderName ?? "";
-  const senderInn = transaction.senderInn;
-
-  const scored = companies.map((company) => {
-    const nameScore = diceCoefficient(senderName, company.name);
-    const taxScore = taxIdPrefixSimilarity(senderInn, company.taxId);
-    const combined = nameScore * 0.6 + taxScore * 0.4;
-    return {
-      company,
-      score: combined,
-      scorePercent: Math.round(combined * 100),
-    };
-  });
+  const scored = companies.map((company) =>
+    scoreCompanyMatch(transaction, company),
+  );
 
   return scored
     .filter((s) => s.score > 0.15) // filter out clearly unrelated noise

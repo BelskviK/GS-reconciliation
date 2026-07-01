@@ -198,7 +198,29 @@ export function TransactionsTable({
   return (
     <div className="overflow-hidden rounded-xl border border-hairline bg-paper-raised">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-225 text-sm">
+        {/* table-fixed + an explicit <colgroup> pins every column to a
+            fixed width up front, instead of letting the browser size
+            columns off each cell's content (the default `auto` layout).
+            With `auto`, a long sender name or a newly-added comment can
+            shove every other column sideways as rows re-render — with
+            `fixed`, only the sender column (the one column left without
+            an explicit width below) absorbs the remaining space, and
+            everything else — date, ს/კ, თანხა, სტატუსი, matched company,
+            action — stays exactly as wide no matter what the row data
+            looks like. Cells that could overflow their fixed width
+            (sender, ს/კ, matched company, comment) truncate with an
+            ellipsis instead of growing the column. */}
+        <table className="w-full min-w-270 table-fixed text-sm">
+          <colgroup>
+            <col className="w-36" />
+            <col className="min-w-40" />
+            <col className="w-32" />
+            <col className="w-32" />
+            <col className="w-36" />
+            <col className="w-56" />
+            {showCommentColumn && <col className="w-40" />}
+            <col className="w-40" />
+          </colgroup>
           <thead>
             <tr className="border-b border-hairline bg-paper">
               <th className="px-4 py-3 text-left">
@@ -251,12 +273,19 @@ export function TransactionsTable({
                     {formatDate(tx.entryDate)}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <span>{tx.senderName ?? "—"}</span>
-                      <MatchScoreDot transaction={tx} companies={companies} />
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="min-w-0 truncate"
+                        title={tx.senderName ?? undefined}
+                      >
+                        {tx.senderName ?? "—"}
+                      </span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 font-mono text-ink-muted">
+                  <td
+                    className="truncate px-4 py-3 font-mono text-ink-muted"
+                    title={tx.senderInn ?? undefined}
+                  >
                     {tx.senderInn ?? "—"}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-right font-mono font-medium">
@@ -266,7 +295,9 @@ export function TransactionsTable({
                     <StatusBadge status={tx.status} />
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      {" "}
+                      <MatchScoreDot transaction={tx} companies={companies} />
                       {onManualMatch ? (
                         <CompanyMatchSelect
                           transaction={tx}
@@ -282,7 +313,10 @@ export function TransactionsTable({
                           disabled={isPending}
                         />
                       ) : (
-                        <span className="px-2 text-ink-muted">
+                        <span
+                          className="min-w-0 truncate px-2 text-ink-muted"
+                          title={tx.matchedCompanyName ?? undefined}
+                        >
                           {tx.matchedCompanyName ?? "—"}
                         </span>
                       )}
@@ -293,7 +327,7 @@ export function TransactionsTable({
                       <CommentCell transaction={tx} onSave={onCommentSave} />
                     </td>
                   )}
-                  <td className="px-4 py-3 text-right">
+                  <td className="whitespace-nowrap px-4 py-3 text-right">
                     {tx.status === "unmatched" && onIgnore && (
                       <button
                         onClick={() => onIgnore(tx.id)}
