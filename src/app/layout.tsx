@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { QueryProvider } from "@/lib/query/QueryProvider";
+import { AppSidebar } from "@/components/layout/AppSidebar";
+import { MatchHighlightProvider } from "@/modules/ledger/context/MatchHighlightContext";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,7 +31,16 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-paper">
-        <QueryProvider>{children}</QueryProvider>
+        <QueryProvider>
+          <MatchHighlightProvider>
+            <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+              <div className="flex flex-col gap-6 sm:flex-row">
+                <AppSidebar />
+                <main className="min-w-0 flex-1">{children}</main>
+              </div>
+            </div>
+          </MatchHighlightProvider>
+        </QueryProvider>
       </body>
     </html>
   );

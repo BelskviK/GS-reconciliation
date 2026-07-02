@@ -1,11 +1,19 @@
 -- ================================================
 -- გადახდების შედარების დეშბორდი — საბანკო ტრანზაქციები
--- გაუშვით მეორე (seed_schema.sql-ის შემდეგ)
+-- გაუშვით მესამე (schema.sql, seed_contracts.sql-ის შემდეგ)
 -- ================================================
 -- 89 ტრანზაქცია: აპრილი–ივნისი 2026
 -- ყველა იწყება status = 'unmatched' — თქვენი აპლიკაცია ამუშავებს მატჩინგს
 -- doc_key ფორმატი შეესაბამება საქართველოს ბანკის API-ს
 -- sender_account ფორმატი: GExxBGxxxxxxxxxxxxxxxxxx (ქართული IBAN)
+--
+-- If the ledger scaffold from schema.sql is installed: trg_sync_bank_
+-- transaction_to_ledger already exists at this point, so every row
+-- inserted below immediately posts Dr 1490 დაუდგენელი ტრანზაქციები /
+-- Cr 6110 (stage 2 — "undefined earnings"), live, regardless of its
+-- `status` — check /ledger right after running this file and 1490 will
+-- already show the full imported total. Clicking "მატჩინგის გაშვება"
+-- afterward is what moves the matched portion from 1490 into 1210.
 -- ================================================
 
 INSERT INTO bank_transactions (doc_key, entry_date, amount, currency, sender_name, sender_inn, sender_account, purpose, status) VALUES

@@ -1,96 +1,73 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useCompanies } from "@/hooks/useCompanies";
-import { useContracts } from "@/hooks/useContracts";
-import { useTransactions } from "@/hooks/useTransactions";
-import {
-  useUpdateTransactionStatus,
-  useManuallyMatchTransaction,
-  useUpdateTransactionComment,
-  useUnmatchTransaction,
-} from "@/hooks/useTransactionMutations";
-import { StatsBar } from "@/components/dashboard/StatsBar";
+import { useEffect, useMemo, useState } from "react";
+import { useAccounts } from "@/modules/ledger/hooks/useAccounts";
+import { useJournalEntries } from "@/modules/ledger/hooks/useJournalEntries";
+import { computeAccountBalances } from "@/modules/ledger/utils/computeAccountBalances";
+import { BalanceSheetPanel } from "@/modules/ledger/components/BalanceSheetPanel";
+import { ProfitAndLossPanel } from "@/modules/ledger/components/ProfitAndLossPanel";
+import { LedgerMatchButton } from "@/modules/ledger/components/LedgerMatchButton";
 import { MonthTabs } from "@/components/dashboard/MonthTabs";
-import { FilterBar } from "@/components/dashboard/FilterBar";
-import { TransactionsTable } from "@/components/dashboard/TransactionsTable";
-import { ExpectedVsActual } from "@/components/dashboard/ExpectedVsActual";
-import { RunMatchingButton } from "@/components/dashboard/RunMatchingButton";
 import { getLastNMonths, getMonthRange } from "@/lib/utils/month";
 import type { MonthOption } from "@/lib/utils/month";
-import type { TransactionStatus } from "@/types/domain";
 
-function useAvailableMonths(): MonthOption[] {
-  return useMemo(() => getLastNMonths(4), []);
-}
-
-export default function DashboardPage() {
+/**
+ * Summary — a balance sheet + P&L rollup, and the app's default landing
+ * page. Always scoped to one of the last 4 months, defaulting to the
+ * most recent — same getLastNMonths(4) /reconciliation uses, same
+ * "default to the latest" behavior. There is no "all months" option
+ * anymore (removed on purpose); the account_balances SQL view it used to
+ * read for that is still defined in schema.sql, just unused by this page
+ * now. Balances are recomputed client-side from the same journal entries
+ * useJournalEntries() already fetches — see computeAccountBalances() for
+ * why "scoped to a month" means cumulative-through-month-end for 1410
+ * specifically, but period-only activity for every other account,
+ * including 1210/1490 (assets too, but without 1410's multi-month
+ * accrual history), and why that split matters. Because that computation
+ * reads every fetched entry (not just ones within the selected month), a
+ * contract's older demand — dated well before the 4-month window, back
+ * at the contract's own start_date — still correctly rolls into 1410's
+ * cumulative balance for whichever month is selected here, even though
+ * there is no month tab that shows that older entry directly (see
+ * /journal for where that limitation actually bites).
+ *
+ * This page itself only reads; the live posting happens via the DB
+ * triggers in schema.sql reacting to `contracts` inserts and
+ * bank_transactions.status changes, triggered either from the required
+ * reconciliation dashboard's own "მატჩინგის გაშვება" button (see
+ * /reconciliation) or this page's own copy of the same button, in the
+ * header below — same position as /reconciliation's, see
+ * LedgerMatchButton. Before the first match, 1210 საბანკო
+ * ანგარიშსწორება (BOG) reads 0 here and 1490 დაუდგენელი ტრანზაქციები
+ * holds the full imported total — see docs/ARCHITECTURE.md section 4.2
+ * for the full before/after walkthrough.
+ */
+export default function LedgerSummaryPage() {
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
-  // Default to showing only "unmatched" transactions
-  const [statusFilter, setStatusFilter] = useState<TransactionStatus[]>([
-    "unmatched",
-  ]);
-  const [search, setSearch] = useState("");
 
-  const availableMonths = useAvailableMonths();
+  const monthOptions: MonthOption[] = useMemo(() => getLastNMonths(4), []);
 
-  // Default to the most recent available month
+  // Default to the most recent available month, same pattern
+  // /reconciliation uses for its own MonthTabs.
   useEffect(() => {
-    if (selectedMonth === null && availableMonths.length > 0) {
-      setSelectedMonth(availableMonths[availableMonths.length - 1].key);
+    if (selectedMonth === null && monthOptions.length > 0) {
+      setSelectedMonth(monthOptions[monthOptions.length - 1].key);
     }
-  }, [availableMonths, selectedMonth]);
+  }, [monthOptions, selectedMonth]);
 
-  const monthRange = useMemo(
-    () => (selectedMonth ? getMonthRange(selectedMonth) : null),
-    [selectedMonth],
-  );
+  const { data: accounts, isLoading: accountsLoading } = useAccounts();
+  const { data: entries, isLoading: entriesLoading } = useJournalEntries();
 
-  const { data: companies, isLoading: companiesLoading } = useCompanies();
-  const { data: contracts, isLoading: contractsLoading } = useContracts();
+  const isLoading = accountsLoading || entriesLoading;
 
-  const { data: monthTransactions, isLoading: monthTxLoading } =
-    useTransactions(
-      monthRange
-        ? { monthStart: monthRange.monthStart, monthEnd: monthRange.monthEnd }
-        : {},
+  const balances = useMemo(() => {
+    if (!selectedMonth || !accounts || !entries) return [];
+    return computeAccountBalances(
+      accounts,
+      entries,
+      getMonthRange(selectedMonth),
     );
-
-  // Only pass a single status to API if exactly one is selected
-  const { data: tableTransactions, isLoading: tableLoading } = useTransactions(
-    monthRange
-      ? {
-          monthStart: monthRange.monthStart,
-          monthEnd: monthRange.monthEnd,
-          ...(statusFilter.length === 1 ? { status: statusFilter[0] } : {}),
-          search,
-        }
-      : {},
-  );
-
-  // Client-side filtering for multiple statuses
-  const filteredTransactions = useMemo(() => {
-    if (!tableTransactions) return [];
-    // If no status filter, return all
-    if (statusFilter.length === 0) {
-      return tableTransactions;
-    }
-    // Filter by selected statuses
-    return tableTransactions.filter((tx) => statusFilter.includes(tx.status));
-  }, [tableTransactions, statusFilter]);
-
-  const updateStatus = useUpdateTransactionStatus();
-  const manualMatch = useManuallyMatchTransaction();
-  const updateComment = useUpdateTransactionComment();
-  const unmatch = useUnmatchTransaction();
-
-  const pendingActionId = updateStatus.isPending
-    ? updateStatus.variables?.transactionId
-    : manualMatch.isPending
-      ? manualMatch.variables?.transactionId
-      : unmatch.isPending
-        ? unmatch.variables
-        : null;
+  }, [selectedMonth, accounts, entries]);
 
   if (!selectedMonth) {
     return (
@@ -101,84 +78,46 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">
-            გადახდების შედარების დეშბორდი
+            სააღრიცხვო წიგნი — შეჯამება
           </h1>
           <p className="mt-1 text-sm text-ink-muted">
-            საბანკო ტრანზაქციების შესაბამისობა ხელშეკრულებებთან
+            ბალანსი და მოგება-ზარალის უწყისი — არქიტექტურის მიმოხილვა (იხ.{" "}
+            <code className="rounded bg-paper px-1 py-0.5 text-xs">
+              docs/ARCHITECTURE.md
+            </code>
+            )
           </p>
         </div>
-        <RunMatchingButton />
+        <LedgerMatchButton />
       </header>
 
-      <div className="mb-6">
+      <div className="overflow-x-auto">
         <MonthTabs
-          months={availableMonths}
+          months={monthOptions}
           selected={selectedMonth}
           onSelect={setSelectedMonth}
         />
       </div>
 
-      <div className="mb-8">
-        <StatsBar
-          transactions={monthTransactions ?? []}
-          isLoading={monthTxLoading}
-        />
+      <div className="flex flex-col gap-8">
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-muted">
+            ბალანსი — ამ თვის აქტივობა
+          </h2>
+          <BalanceSheetPanel balances={balances} isLoading={isLoading} />
+        </section>
+
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-muted">
+            მოგება-ზარალის უწყისი — ამ თვის აქტივობა
+          </h2>
+          <ProfitAndLossPanel balances={balances} isLoading={isLoading} />
+        </section>
       </div>
-
-      <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-muted">
-          ტრანზაქციები
-        </h2>
-        <div className="mb-3">
-          <FilterBar
-            status={statusFilter}
-            search={search}
-            onStatusChange={setStatusFilter}
-            onSearchChange={setSearch}
-          />
-        </div>
-        <TransactionsTable
-          transactions={filteredTransactions}
-          companies={companies ?? []}
-          isLoading={tableLoading}
-          statusFilter={statusFilter}
-          onStatusFilterChange={setStatusFilter}
-          onIgnore={(id) =>
-            updateStatus.mutate({ transactionId: id, status: "ignored" })
-          }
-          onUnignore={(id) =>
-            updateStatus.mutate({ transactionId: id, status: "unmatched" })
-          }
-          onManualMatch={(id, companyId) =>
-            manualMatch.mutate({ transactionId: id, companyId })
-          }
-          onUnmatch={(id) => unmatch.mutate(id)}
-          onCommentSave={(id, comment) =>
-            updateComment.mutate({ transactionId: id, comment })
-          }
-          pendingActionId={pendingActionId}
-        />
-      </section>
-
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-muted">
-          მოსალოდნელი vs ფაქტობრივი
-        </h2>
-        {monthRange && (
-          <ExpectedVsActual
-            companies={companies ?? []}
-            contracts={contracts ?? []}
-            transactions={monthTransactions ?? []}
-            monthRange={monthRange}
-            monthKey={selectedMonth}
-            isLoading={companiesLoading || contractsLoading || monthTxLoading}
-          />
-        )}
-      </section>
     </div>
   );
 }

@@ -12,11 +12,12 @@ type TransactionRowWithCompany = TransactionRow & {
  * Module-level flag set the first time we successfully read a row and
  * observe whether `comment` is present. `select("*")` against Postgres
  * simply omits columns that don't exist — it does not error — so this
- * is populated from real response shape, not guessed. Components use
- * `hasCommentColumn()` to decide whether to render the comment UI at
- * all, so the table doesn't show an empty/broken column when migration
- * 003 hasn't been run (e.g. a reviewer who only ran the two required
- * seed files).
+ * is populated from real response shape, not guessed. `comment` is a
+ * standard column in schema.sql now (not a separate optional migration),
+ * so this is mostly a defensive leftover at this point — kept because it's
+ * harmless and still correctly guards against a schema.sql that's out of
+ * date for any other reason. Components use `hasCommentColumn()` to
+ * decide whether to render the comment UI at all.
  */
 let commentColumnDetected: boolean | null = null;
 
@@ -163,8 +164,9 @@ export async function unmatchTransaction(
 
 /**
  * Updates the free-text comment on a transaction. Only call this when
- * hasCommentColumn() is true — if migration 003 hasn't been run, this
- * will fail with a Postgres "column does not exist" error.
+ * hasCommentColumn() is true — if schema.sql hasn't been run (so the
+ * `comment` column doesn't exist yet), this will fail with a Postgres
+ * "column does not exist" error.
  */
 export async function updateTransactionComment(
   transactionId: string,
@@ -183,7 +185,7 @@ export async function updateTransactionComment(
 
 /**
  * Thrown by runAutoMatching() specifically when match_transactions_by_inn()
- * doesn't exist in the database yet (migration 001 was never run, or the
+ * doesn't exist in the database yet (schema.sql was never run, or the
  * anon role was never granted EXECUTE on it). Kept as a distinct class so
  * the UI can show an actionable "create the function" message instead of
  * a generic failure.
@@ -191,7 +193,7 @@ export async function updateTransactionComment(
 export class MatchingFunctionMissingError extends Error {
   constructor() {
     super(
-      "ბაზაში არ მოიძებნა match_transactions_by_inn() ფუნქცია — გთხოვთ, გაუშვათ supabase/migrations/001_match_transactions_by_inn.sql Supabase SQL Editor-ში და მიანიჭეთ anon როლს EXECUTE უფლება.",
+      "ბაზაში არ მოიძებნა match_transactions_by_inn() ფუნქცია — გთხოვთ, გაუშვათ schema.sql Supabase SQL Editor-ში და მიანიჭეთ anon როლს EXECUTE უფლება.",
     );
     this.name = "MatchingFunctionMissingError";
   }

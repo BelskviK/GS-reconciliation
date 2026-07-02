@@ -1,72 +1,14 @@
 -- ================================================
--- Payment Reconciliation Dashboard — Schema + Seed Data
--- Run this FIRST in Supabase SQL Editor
+-- Payment Reconciliation Dashboard — companies + contracts
+-- Run this SECOND, after schema.sql.
 -- ================================================
-
--- Enable UUID generation
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
--- ==================== TABLES ====================
-
-CREATE TABLE IF NOT EXISTS companies (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  tax_id TEXT UNIQUE NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS contracts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  monthly_amount NUMERIC(15, 2) NOT NULL,
-  status TEXT NOT NULL CHECK (status IN ('active', 'paused', 'ended')),
-  start_date DATE NOT NULL,
-  end_date DATE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS bank_transactions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  doc_key TEXT UNIQUE NOT NULL,
-  entry_date DATE NOT NULL,
-  amount NUMERIC(15, 2) NOT NULL,
-  currency TEXT NOT NULL DEFAULT 'GEL',
-  sender_name TEXT,
-  sender_inn TEXT,
-  sender_account TEXT,
-  purpose TEXT,
-  matched_company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
-  match_method TEXT CHECK (match_method IN ('inn_exact', 'manual')),
-  match_confidence NUMERIC(3, 2),
-  status TEXT NOT NULL DEFAULT 'unmatched' CHECK (status IN ('matched', 'unmatched', 'ignored')),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- ==================== INDEXES ====================
-
-CREATE INDEX IF NOT EXISTS idx_transactions_sender_inn ON bank_transactions(sender_inn);
-CREATE INDEX IF NOT EXISTS idx_transactions_status ON bank_transactions(status);
-CREATE INDEX IF NOT EXISTS idx_transactions_entry_date ON bank_transactions(entry_date DESC);
-CREATE INDEX IF NOT EXISTS idx_transactions_matched_company ON bank_transactions(matched_company_id) WHERE matched_company_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_contracts_company ON contracts(company_id);
-CREATE INDEX IF NOT EXISTS idx_contracts_status ON contracts(status);
-
--- ==================== AUTO-UPDATE TRIGGER ====================
-
-CREATE OR REPLACE FUNCTION update_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER set_updated_at
-  BEFORE UPDATE ON bank_transactions
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-
--- ==================== COMPANIES (15) ====================
+--
+-- 15 companies, 18 contracts. If the ledger scaffold from schema.sql is
+-- installed, trg_sync_contract_to_ledger already exists at this point,
+-- so every active contract inserted below immediately posts its own
+-- demand (Dr 1410 მოთხოვნები / Cr 6000 შემოსავალი) — check /ledger right
+-- after running this file and 1410/6000 will already show a balance,
+-- live, no separate backfill step required.
 
 INSERT INTO companies (id, name, tax_id) VALUES
   ('a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d', 'შპს გეოტრანსი', '404871234'),
@@ -84,8 +26,6 @@ INSERT INTO companies (id, name, tax_id) VALUES
   ('a3b4c5d6-e7f8-4a9b-0c1d-2e3f4a5b6c7d', 'შპს რუსთავი ტრანსი', '404112299'),
   ('b4c5d6e7-f8a9-4b0c-1d2e-3f4a5b6c7d8e', 'შპს კოლხეთი გრუპი', '405889911'),
   ('c5d6e7f8-a9b0-4c1d-2e3f-4a5b6c7d8e9f', 'სს ბათუმი კარგო', '204334455');
-
--- ==================== CONTRACTS (18) ====================
 
 INSERT INTO contracts (company_id, monthly_amount, status, start_date, end_date) VALUES
   -- გეოტრანსი: active, 1500/month

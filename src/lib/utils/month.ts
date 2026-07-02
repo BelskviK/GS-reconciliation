@@ -48,3 +48,22 @@ export function getLastNMonths(n: number): MonthOption[] {
   }
   return months;
 }
+
+/**
+ * Distinct calendar months actually present in a set of ISO dates,
+ * oldest first. Unlike getLastNMonths() — which assumes a fixed window
+ * relative to today, right for the reconciliation dashboard's
+ * April–June 2026 transaction data — this is for data whose date range
+ * isn't fixed up front, e.g. the ledger journal, where contract-demand
+ * entries are dated at each contract's own start_date (scattered across
+ * 2025) while transaction-collection entries land in 2026.
+ */
+export function getMonthsFromDates(dates: string[]): MonthOption[] {
+  const keys = new Set<string>();
+  for (const date of dates) {
+    keys.add(date.slice(0, 7)); // "YYYY-MM-DD" -> "YYYY-MM"
+  }
+  return Array.from(keys)
+    .sort()
+    .map((key) => ({ key, label: getMonthLabel(key) }));
+}
