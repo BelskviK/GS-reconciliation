@@ -358,7 +358,7 @@ export function TransactionsTable({
               <td className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                 სულ ({sorted.length})
               </td>
-              <td colSpan={3 + extraCols} />
+              <td colSpan={1 + extraCols} />
               <td className="whitespace-nowrap px-4 py-3 text-right font-mono font-semibold">
                 {formatGEL(totalAmount)}
               </td>
