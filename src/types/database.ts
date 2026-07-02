@@ -318,14 +318,12 @@ export interface Database {
         // union (GenericUpdatableView | GenericNonUpdatableView) requires
         // Relationships on every member. Omitting it means this view no
         // longer structurally matches GenericView, which makes the whole
-        // `Database["public"]` schema fail its `extends GenericSchema`
-        // check in SupabaseClient's generic defaults — and when that
-        // check fails, Schema silently resolves to `never` for the
-        // *entire* client, not just this view. That's what was turning
-        // every .update() on bank_transactions into a `never` parameter
-        // and breaking the production build (local dev/editor can be
-        // slower to surface this depending on cached types, which is why
-        // it can pass locally and only fail on a clean `next build`).
+        // Database["public"] schema fail its "extends GenericSchema" check
+        // in SupabaseClient's generic defaults — and when that check
+        // fails, Schema silently resolves to `never` for the *entire*
+        // client, not just this view. That's what was turning every
+        // .update() on bank_transactions into a `never` parameter and
+        // breaking the production build.
         Relationships: [];
       };
     };

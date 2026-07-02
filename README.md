@@ -163,6 +163,6 @@ select
 
 ## Deployment
 
-Deployed on Vercel: [gs-reconciliation.vercel.app](https://gs-reconciliation-ruzn-ten.vercel.app/)
+Deployed on Vercel: [gs-reconciliation.vercel.app](https://gs-reconciliation-balance-git-recommendation-blsk.vercel.app/)
 
 Environment variables required on Vercel: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
