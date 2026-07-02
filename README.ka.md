@@ -163,6 +163,6 @@ select
 
 ## დეპლოიმენტი
 
-განთავსებულია Vercel-ზე: [gs-reconciliation.vercel.app](https://gs-reconciliation-9yzf.vercel.app/)
+განთავსებულია Vercel-ზე: [gs-reconciliation.vercel.app](https://gs-reconciliation-ruzn-ten.vercel.app/)
 
 Vercel-ზე საჭირო გარემოს ცვლადები: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
