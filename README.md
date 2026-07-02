@@ -1,5 +1,7 @@
 # გადახდების შედარების დეშბორდი (Payment Reconciliation Dashboard)
 
+🇬🇪 [ქართული ვერსია](./README.ka.md)
+
 A dashboard for reconciling Bank of Georgia transactions against active service contracts — matching payments to companies, surfacing what's unmatched, and comparing expected vs. actual revenue per month.
 
 **Live:** [gs-reconciliation.vercel.app](https://gs-reconciliation.vercel.app/)
@@ -40,7 +42,7 @@ Go to **SQL Editor** in your Supabase dashboard. For each file, open a **new que
    ALTER TABLE contracts DISABLE ROW LEVEL SECURITY;
    ALTER TABLE bank_transactions DISABLE ROW LEVEL SECURITY;
    ```
-5. **Recommended, optional:** `supabase/migrations/002_add_transaction_comment.sql` — adds a nullable `comment` column to `bank_transactions`. The frontend detects at runtime whether this column exists and only shows the "კომენტარი" column/editor if it does, so skipping this step is safe — the app still works without it. It's worth running anyway: of the 89 seeded transactions, 12 have a sender INN that doesn't belong to any company (`select match_transactions_by_inn();` matches 77, leaving those 12 `unmatched`), and there's no contract to suggest one either. A comment is the only place to record *why* — e.g. "confirmed with the bank, one-off payment, not a contract" or "unknown sender, flagged for follow-up 2026-07-02" — so the next operator looking at that row doesn't have to re-investigate it from scratch.
+5. **Recommended, optional:** `supabase/migrations/002_add_transaction_comment.sql` — adds a nullable `comment` column to `bank_transactions`. The frontend detects at runtime whether this column exists and only shows the "კომენტარი" column/editor if it does, so skipping this step is safe — the app still works without it. It's worth running anyway: of the 89 seeded transactions, 12 have a sender INN that doesn't belong to any company (`select match_transactions_by_inn();` matches 77, leaving those 12 `unmatched`), and there's no contract to suggest one either. A comment is the only place to record _why_ — e.g. "confirmed with the bank, one-off payment, not a contract" or "unknown sender, flagged for follow-up 2026-07-02" — so the next operator looking at that row doesn't have to re-investigate it from scratch.
 
 Sanity check: `select count(*) from bank_transactions;` should return 89, and `select match_transactions_by_inn();` should return 77 (77 matched, 12 stay unmatched — those 12 have sender INNs that don't belong to any seeded company).
 
@@ -65,15 +67,15 @@ Open [http://localhost:3000](http://localhost:3000). To re-test the matching but
 
 ## Assignment requirements — where each one is met
 
-| Requirement | Where |
-|---|---|
-| Auto-matching logic (`sender_inn = tax_id`, idempotent, `ignored` is sticky) | [Where the matching logic lives, and why](#where-the-matching-logic-lives-and-why) · `supabase/migrations/001_match_transactions_by_inn.sql` |
-| Stats bar (total / matched / unmatched counts + amounts, match rate %) | `src/components/dashboard/StatsBar.tsx` |
-| Transactions table (date, sender, tax ID, amount, colored status, matched company, action; sortable by date/amount; filterable by status) | `src/components/dashboard/TransactionsTable.tsx` |
-| Month navigation (April–June 2026, all sections scoped to the selected month) | `src/components/dashboard/MonthTabs.tsx`, `src/lib/utils/month.ts` |
-| Expected vs. actual, including contract-active-in-month edge cases | [Expected vs. actual: the key rule](#expected-vs-actual-the-key-rule) |
-| Zod validation for filter/search/sort state | `src/schemas/transactionFilters.ts` |
-| TanStack Query for all data loading, correct cache invalidation after mutations, loading/error states | [Data loading, caching, and mutations](#data-loading-caching-and-mutations) |
+| Requirement                                                                                                                               | Where                                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auto-matching logic (`sender_inn = tax_id`, idempotent, `ignored` is sticky)                                                              | [Where the matching logic lives, and why](#where-the-matching-logic-lives-and-why) · `supabase/migrations/001_match_transactions_by_inn.sql` |
+| Stats bar (total / matched / unmatched counts + amounts, match rate %)                                                                    | `src/components/dashboard/StatsBar.tsx`                                                                                                      |
+| Transactions table (date, sender, tax ID, amount, colored status, matched company, action; sortable by date/amount; filterable by status) | `src/components/dashboard/TransactionsTable.tsx`                                                                                             |
+| Month navigation (April–June 2026, all sections scoped to the selected month)                                                             | `src/components/dashboard/MonthTabs.tsx`, `src/lib/utils/month.ts`                                                                           |
+| Expected vs. actual, including contract-active-in-month edge cases                                                                        | [Expected vs. actual: the key rule](#expected-vs-actual-the-key-rule)                                                                        |
+| Zod validation for filter/search/sort state                                                                                               | `src/schemas/transactionFilters.ts`                                                                                                          |
+| TanStack Query for all data loading, correct cache invalidation after mutations, loading/error states                                     | [Data loading, caching, and mutations](#data-loading-caching-and-mutations)                                                                  |
 
 ### Bonus features (all implemented)
 
